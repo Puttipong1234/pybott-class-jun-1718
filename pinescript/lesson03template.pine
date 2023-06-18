@@ -53,16 +53,91 @@ LONG_ONLY = input.bool(false, 'LONG_ONLY ?', group='RISK CONFIG')
     //  CREATE INDICATOR 1 HERE  // SR LUXALGO
     ///////////////////////////////
 
+leftBars = input(30, title='Left Bars ')
+rightBars = input(30, title='Right Bars')
+LONG_BIAS_REGION = input(20,title="LONG REGION %")
+SHORT_BIAS_REGION = input(20,title="SHORT REGION %")
+//
+highUsePivot = fixnan(ta.pivothigh(leftBars, rightBars)[1])
+lowUsePivot = fixnan(ta.pivotlow(leftBars, rightBars)[1])
+r1 = plot(highUsePivot, color=ta.change(highUsePivot) ? na : #FF0000, linewidth=3, offset=-(rightBars + 1), title='Resistance')
+s1 = plot(lowUsePivot, color=ta.change(lowUsePivot) ? na : #233dee, linewidth=3, offset=-(rightBars + 1), title='Support')
+
+float Range = highUsePivot - lowUsePivot
+float Long_range_region = (Range * LONG_BIAS_REGION/100) + lowUsePivot
+float Short_range_region = highUsePivot - (Range * SHORT_BIAS_REGION/100)
+
+BIAS_LONG = (close[1] < Long_range_region and close[1] > lowUsePivot) or (low < Long_range_region and low > lowUsePivot)
+BIAS_SHORT = (close[1] > Short_range_region and close[1] < highUsePivot) or (high > Short_range_region and high < highUsePivot)
+
+plotchar(BIAS_LONG,title = "Bias long confirm")
+plotchar(BIAS_SHORT,title = "Bias short confirm")
+plotchar(Short_range_region,"Short_range_region")
+
 
     ///////////////////////////////
     //  CREATE INDICATOR 1 HERE  // PIVOT SUPERTREND
     ///////////////////////////////
+
+PVT1_prd = input.int(defval=5, title='Pivot Point Period', minval=1, maxval=50)
+PVT1_Factor = input.float(defval=1.9, title='ATR Factor', minval=1, step=0.1)
+PVT1_Pd = input.int(defval=10, title='ATR Period', minval=1)
+
+// get Pivot High/Low
+float PVT1_ph = ta.pivothigh(PVT1_prd, PVT1_prd)
+float PVT1_pl = ta.pivotlow(PVT1_prd, PVT1_prd)
+
+// calculate the Center line using pivot points
+var float PVT1_center = na
+float PVT1_lastpp = PVT1_ph ? PVT1_ph : PVT1_pl ? PVT1_pl : na
+if PVT1_lastpp
+    if na(PVT1_center)
+        PVT1_center := PVT1_lastpp
+        PVT1_center
+    else
+        //weighted calculation
+        PVT1_center := (PVT1_center * 2 + PVT1_lastpp) / 3
+        PVT1_center
+
+// upper/lower bands calculation
+PVT1_Up = PVT1_center - PVT1_Factor * ta.atr(PVT1_Pd)
+PVT1_Dn = PVT1_center + PVT1_Factor * ta.atr(PVT1_Pd)
+
+// get the trend
+float PVT1_TUp = na
+float PVT1_TDown = na
+PVT1_Trend = 0
+PVT1_TUp := close[1] > PVT1_TUp[1] ? math.max(PVT1_Up, PVT1_TUp[1]) : PVT1_Up
+PVT1_TDown := close[1] < PVT1_TDown[1] ? math.min(PVT1_Dn, PVT1_TDown[1]) : PVT1_Dn
+PVT1_Trend := close > PVT1_TDown[1] ? 1 : close < PVT1_TUp[1] ? -1 : nz(PVT1_Trend[1], 1)
+
+
+// plot the trend
+PVT1_Trailingsl = PVT1_Trend == 1 ? PVT1_TUp : PVT1_TDown
+PVT1_linecolor = PVT1_Trend == 1 and nz(PVT1_Trend[1]) == 1 ? color.lime : PVT1_Trend == -1 and nz(PVT1_Trend[1]) == -1 ? color.red : na
+
+PVT1_bsignal = PVT1_Trend == 1
+PVT1_ssignal = PVT1_Trend == -1
 
 
     ///////////////////////////////
     //  CREATE INDICATOR 2 HERE  // %BB
     ///////////////////////////////
 
+length = input.int(10, minval=1)
+src = input(close, title="Source")
+mult = input.float(1.0, minval=0.001, maxval=50, title="StdDev")
+basis = ta.sma(src, length)
+dev = mult * ta.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+bbr = (src - lower)/(upper - lower)
+
+Trigger_Long = ta.crossover(bbr,0)
+Trigger_Short = ta.crossunder(bbr,1)
+
+plotchar(Trigger_Long,title = "trigger long confirm")
+plotchar(Trigger_Short,title = "trigger short confirm")
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
@@ -74,8 +149,8 @@ LONG_ONLY = input.bool(false, 'LONG_ONLY ?', group='RISK CONFIG')
     //   CREATE SUMMARY SIGNALS  //
     /////////////////////////////// 
 
-CANDLE_PATTERN_LONG = false
-CANDLE_PATTERN_SHORT = false
+CANDLE_PATTERN_LONG = BIAS_LONG and Trigger_Long 
+CANDLE_PATTERN_SHORT = BIAS_SHORT and Trigger_Short 
 
 LONG_SIGNAL = CANDLE_PATTERN_LONG  //and MACDZeroLag > Lignesignal and MACDZeroLag > 0 and strategy.position_size==0//crossover(MACDZeroLag[10],0) and MACDZeroLag < Lignesignal and trend == 1 //crossover(close,upper) and trend == 1 //crossover(rsi,RSI_BOTTOM_BAND) and close > TPlower //and lowest(close,5) > lower
 SHORT_SIGNAL = CANDLE_PATTERN_SHORT  //and MACDZeroLag < Lignesignal and MACDZeroLag < 0 and strategy.position_size==0//crossunder(MACDZeroLag[10],0) and MACDZeroLag > Lignesignal and trend != 1 //crossunder(close,lower) and trend != 1//crossunder(rsi,RSI_TOP_BAND) and close < TPupper //and highest(close,5) < upper
