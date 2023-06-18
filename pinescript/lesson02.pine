@@ -1,0 +1,36 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © PuttipongAutomateTrader
+
+//@version=5
+strategy("lesson02-pybott basic strategy",overlay=true)
+import TradingView/ta/5
+
+ema200 = ta.ema(source = close, length = 200) 
+plot(ema200,linewidth=2,title = "EMA")
+
+
+[supertrend, direction] = ta.supertrend(3, 10)
+plot(direction < 0 ? supertrend : na, "Up direction", color = color.green, style=plot.style_linebr)
+plot(direction > 0 ? supertrend : na, "Down direction", color = color.red, style=plot.style_linebr)
+
+
+// entry long : close above ema 200 and supertrend trigger buy => OPEN LONG
+// entry short : close below ema 200 and supertrend trigger sell => OPEN SHORT
+// exit long : close touch supertrend line
+// exit short : close touch supertrend line
+
+// long
+if (ta.crossunder(direction,0) and close > ema200)
+    strategy.entry(id = "LONG",direction = strategy.long,qty = 1,comment = "OPEN LONG")
+
+//short
+else if (ta.crossover(direction,0) and close < ema200)
+    strategy.entry(id = "SHORT",direction = strategy.short,qty = 1,comment = "OPEN SHORT")
+
+// exit long
+if (strategy.position_size > 0)
+    strategy.exit(id = "EXIT LONG",from_entry = "LONG",qty = 1,stop = supertrend, comment = "TPSL LONG")
+
+// exit short
+if (strategy.position_size < 0)
+    strategy.exit(id = "EXIT SHORT",from_entry = "SHORT",qty = 1,stop = supertrend, comment = "TPSL SHORT")
